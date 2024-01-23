@@ -11,7 +11,7 @@ from transformers import AutoModel
 QUERY = "malaria treatment"
 
 COLLECTION_NAME = "rag_test"
-DOCUMENT_FOLDER = "/Users/schuemie/Data/RagTest"
+DOCUMENT_FOLDER = "d:/RagDocs"
 
 CONNECTION_STRING = PGVector.connection_string_from_db_params(
     driver="psycopg2",
@@ -40,7 +40,7 @@ for pmid in pmids:
             text = article.title
         else:
             text = article.title + "\n" + article.abstract
-        open(file_name, "w").write(text)
+        open(file_name, "w", encoding="UTF8").write(text)
         doc = Document(page_content=text,
                        metadata = {"source": f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/"})
         docs.append(doc)
