@@ -28,7 +28,7 @@ vectorstore = PGVector(
     connection_string=CONNECTION_STRING,
     embedding_function=embeddings,
 )
-retriever = vectorstore.as_retriever(search_kwargs={"k": 10})
+retriever = vectorstore.as_retriever(search_kwargs={"k": 4})
 
 template = """<|im_start|>user
 Answer the question based only on the following context:
