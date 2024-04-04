@@ -1,14 +1,15 @@
-import keyring
 from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import PyPDFDirectoryLoader
 from langchain_community.embeddings import HuggingFaceEmbeddings
 from langchain_community.vectorstores import Chroma
 from transformers import AutoModel
 
+from CustomPDFDirectoryLoader import CustomPDFDirectoryLoader
+
 DOCUMENT_FOLDER = "/Users/schuemie/Data/RagTest"
 
 # Load the documents and split them into chunks.
-loader = PyPDFDirectoryLoader(DOCUMENT_FOLDER)
+# loader = PyPDFDirectoryLoader(DOCUMENT_FOLDER)
+loader = CustomPDFDirectoryLoader(DOCUMENT_FOLDER, extract_images=True)
 text_splitter = RecursiveCharacterTextSplitter(
     chunk_size=1024,
     chunk_overlap=256
