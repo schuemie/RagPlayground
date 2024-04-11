@@ -15,6 +15,7 @@ text_splitter = RecursiveCharacterTextSplitter(
     chunk_overlap=256
 )
 chunks = loader.load_and_split(text_splitter)
+print("Number of chunks:", len(chunks))
 
 # Create the embeddings and store them in the database.
 

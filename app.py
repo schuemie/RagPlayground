@@ -1,5 +1,5 @@
-from datetime import date
 import random
+from datetime import date, datetime
 from pathlib import Path
 
 from shiny import App, Inputs, Outputs, Session, render, ui, reactive
@@ -7,15 +7,11 @@ from shiny.types import ImgData
 
 import app_functions
 
-
 template = """
-You are a pharmaceutical research & development professional performing the structured benefit-risk analysis for a new investigational drug.
-Use only the provided pieces of retrieved context to perform the requested tasks. 
-
-Tasks: 
-1. Write the 'Analysis of Condition' section on the evidence and uncertainties for the nature of {indication}, focusing on the most important aspects of the condition that {product} may target, symptom burden, and natural course of the disease. What aspects of the condition have the most impact on the population with the condition?  Provide the most critical information on incidence, duration, disease progression, morbidity, symptoms, impact on patient functioning, mortality, health-related quality of life, and important differences in outcome or severity in subpopulations. For each point of information you provide, reference what document and page number this information was taken from.
-2. Summarize in no more than 3 bullets the key conclusions of the information you just provided.
+What is the primary treatment option for {indication}?
 """
+
+version = "0.2.0"
 
 app_ui = ui.page_fluid(
     ui.row(
@@ -23,60 +19,91 @@ app_ui = ui.page_fluid(
         ui.column(1, ui.output_image("image", width="100px", height="97px"), align="right")
     ),
     ui.layout_column_wrap(
-        ui.input_text("indication", "Indication:", "Early Onset Severe Hemolytic Disease of the Fetus and Newborn (EOS-HDFN)"),
-        ui.input_text("product", "Product:", "nipocalimab")
+        ui.input_text("indication", "Indication:", "Multiple myeloma"),
+        ui.input_text("product", "Product:", "nipocalimab"),
     ),
-    ui.input_text_area("template",
-                       "Prompt template:",
+    ui.input_text_area("search_template",
+                       "Search template:",
                        template,
                        width="100%",
                        height="200px"),
     ui.input_numeric("k", "Number of text chunks to retrieve:", 3),
-    ui.input_action_button("submit", "Submit"),
-    ui.p("Instantiated prompt with context:"),
-    ui.pre(ui.output_text("prompt_with_context"), style="white-space: pre-wrap; word-break: keep-all;"),
+    ui.input_action_button("search", "Search"),
+    ui.p("Search results:"),
+    ui.pre(ui.output_text("search_results_output"), style="white-space: pre-wrap; word-break: keep-all;"),
+    ui.input_text_area("prompt_template",
+                       "Prompt template:",
+                       "",
+                       width="100%",
+                       height="200px"),
+    ui.input_action_button("copy", "Copy search template to prompt template", inline=True),
+    ui.input_action_button("submit", "Submit", inline=True),
     ui.p("Response:"),
-    ui.pre(ui.output_text("response"), style="white-space: pre-wrap; word-break: keep-all;"),
+    ui.pre(ui.output_text("llm_result_output"), style="white-space: pre-wrap; word-break: keep-all;"),
     ui.download_button("download_data", "Download")
 )
 
 
 def server(input: Inputs, output: Outputs, session: Session):
 
-    value = reactive.value(app_functions.LlmResponse("", ""))
+    llm_result = reactive.value("")
+
+    search_results = reactive.value([])
+
+    @reactive.effect
+    @reactive.event(input.copy)
+    def _():
+        ui.update_text_area("prompt_template", value=input.search_template())
+
+    def search():
+        prompt = input.search_template().format(indication=input.indication(), product=input.product())
+        search_results.set(app_functions.get_search_results(prompt, input.k()))
+
+    @reactive.effect
+    @reactive.event(input.search)
+    def _():
+        search()
+
+    def convert_search_results_to_text() -> str:
+        texts = []
+        for doc, score in search_results.get():
+            texts.append(f"Score: {score}, Metadata: {doc.metadata}\n--------------\n{doc.page_content}\n--------------\n")
+        return "\n".join(texts)
+
+    @render.text
+    def search_results_output():
+        return convert_search_results_to_text()
 
     @reactive.effect
     @reactive.event(input.submit)
     async def _():
         id = ui.notification_show("Processing...", duration=999, type="message", close_button=False)
-        prompt = input.template().format(indication=input.indication(), product=input.product())
-        value.set(await app_functions.get_llm_response(prompt, input.k()))
+        prompt = input.prompt_template().format(indication=input.indication(), product=input.product())
+        llm_result.set(await app_functions.get_llm_response(prompt, search_results.get()))
         ui.notification_remove(id)
 
     @render.text
-    def response():
-        return value.get().response
-
-    @render.text
-    def prompt_with_context():
-        return value.get().prompt
+    def llm_result_output():
+        return llm_result.get()
 
     @render.download(
         filename=lambda: f"brPrompts-{date.today().isoformat()}-{random.randint(100, 999)}.txt"
     )
     async def download_data():
-        yield "\nIndication:\n"
-        yield input.indication() + "\n"
-        yield "\nProduct:\n"
-        yield input.product() + "\n"
-        yield "Template:\n"
-        yield input.template() + "\n"
-        yield "\nNumber of text chunks to retrieve:\n"
-        yield str(input.k()) + "\n"
-        yield "\nPrompt with context:\n"
-        yield value.get().prompt + "\n"
-        yield "\nResponse:\n"
-        yield value.get().response + "\n"
+        date_time = datetime.now() .strftime("%Y-%m-%d, %H:%M:%S")
+        yield "Timestamp: " + date_time + "\n"
+        yield "App version: " + version + "\n\n"
+        yield "Indication: " + input.indication() + "\n"
+        yield "Product: " + input.product() + "\n\n"
+        yield "Search template:\n"
+        yield input.search_template().strip() + "\n\n"
+        yield "\nNumber of text chunks to retrieve:" + str(input.k()) + "\n\n"
+        yield "Search results:\n"
+        yield convert_search_results_to_text() + "\n\n"
+        yield "Prompt template:\n"
+        yield input.prompt_template().strip() + "\n\n"
+        yield "LLM response:\n"
+        yield llm_result.get() + "\n"
 
     @render.image
     def image():
