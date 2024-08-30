@@ -35,7 +35,7 @@ def store_in_chromadb(ids: List[Any], publication_dates: List[date], embeddings:
 
 
 def process_parquet_files(folder: str):
-    embedder = TransformerEmbedder(batch_size=128)
+    embedder = TransformerEmbedder(batch_size=12)
     total_count = 0
     files = os.listdir(folder)
     for file_name in files:
@@ -45,9 +45,9 @@ def process_parquet_files(folder: str):
         abstracts = data['abstract']
         publication_dates = data['publication_date']
 
-        # ids = ids[0:10000]
-        # abstracts = abstracts[0:10000]
-        # publication_dates = publication_dates[0:10000]
+        ids = ids[0:10000]
+        abstracts = abstracts[0:10000]
+        publication_dates = publication_dates[0:10000]
 
         logging.info(f"- Processing records {total_count} to {total_count + len(ids) - 1}")
 
