@@ -5,7 +5,12 @@ import numpy as np
 
 class TransformerEmbedder:
     def __init__(self, model_name='nomic-ai/nomic-embed-text-v1.5'):
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        if torch.cuda.is_available():
+            self.device = torch.device('cuda')
+        elif torch.backends.mps.is_available():
+            self.device = torch.device("mps")
+        else:
+            self.device = torch.device("cpu")
         self.tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
         self.model = AutoModel.from_pretrained(model_name, trust_remote_code=True).to(self.device)
 
