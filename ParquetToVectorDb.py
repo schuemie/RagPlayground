@@ -1,10 +1,11 @@
 import logging
 import os
 from datetime import date
+from typing import List, Any
 
 import pyarrow.parquet as pq
 import chromadb
-from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
+from numpy import ndarray
 
 from TransformerEmbedder import TransformerEmbedder
 
@@ -19,17 +20,17 @@ logging.basicConfig(filename="log.txt",
 logger.info("Started")
 
 
-def store_in_chromadb(ids, publication_dates, embeddings):
-    client = chromadb.PersistentClient(path = "./PubMedChromaDb")
-    collection = client.get_or_create_collection(name="pubmed_abstracts", embedding_function=DefaultEmbeddingFunction())
+def store_in_chromadb(ids: List[Any], publication_dates: List[date], embeddings: ndarray) -> None:
+    client = chromadb.PersistentClient(path="./PubMedChromaDb")
+    collection = client.get_or_create_collection(name="pubmed_abstracts")
 
     ids = [str(id) for id in ids]
-    metadatas = [{'publication_date': (publication_date.toordinal() - DAYS_OFFSET)} for publication_date in publication_dates]
-    collection.add(ids=ids, embeddings=embeddings, metadatas=metadatas)
+    meta_datas = [{'publication_date': (pd.toordinal() - DAYS_OFFSET)} for pd in publication_dates]
+    collection.add(ids=ids, embeddings=embeddings, metadatas=meta_datas)
 
 
-def process_parquet_files(folder):
-    embedder = TransformerEmbedder()
+def process_parquet_files(folder: str):
+    embedder = TransformerEmbedder(batch_size=128)
     total_count = 0
     files = os.listdir(folder)
     for file_name in files:
@@ -38,10 +39,15 @@ def process_parquet_files(folder):
         ids = data['id']
         abstracts = data['abstract']
         publication_dates = data['publication_date']
+
+        ids = ids[0:100]
+        abstracts = abstracts[0:100]
+        publication_dates = publication_dates[0:100]
+
         logging.info(f"- Processing records {total_count} to {total_count + len(ids) - 1}")
 
         logging.info("  Embedding")
-        embeddings = embedder.generate_embeddings(abstracts, batch_size=128)
+        embeddings = embedder.embed_documents(abstracts)
 
         logging.info("  Storing in ChromaDB")
         store_in_chromadb(ids, publication_dates, embeddings)

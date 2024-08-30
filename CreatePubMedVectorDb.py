@@ -37,7 +37,7 @@ def process_pubmed_abstracts(batch_size=1000, embedding_batch_size=32):
 
         logging.info("  Embedding")
         abstracts = [record[1] for record in records]
-        embeddings = embedder.generate_embeddings(abstracts, batch_size=embedding_batch_size)
+        embeddings = embedder.embed_documents(abstracts, batch_size=embedding_batch_size)
 
         logging.info("  Storing in ChromaDB")
         store_in_chromadb(records, embeddings)
