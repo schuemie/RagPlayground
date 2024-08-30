@@ -26,7 +26,12 @@ def store_in_chromadb(ids: List[Any], publication_dates: List[date], embeddings:
 
     ids = [str(id) for id in ids]
     meta_datas = [{'publication_date': (pd.toordinal() - DAYS_OFFSET)} for pd in publication_dates]
-    collection.add(ids=ids, embeddings=embeddings, metadatas=meta_datas)
+
+    batch_size = 166  # Max batch size allowed by collection.add()
+    for i in range(0, len(ids), batch_size):
+        collection.add(ids=ids[i:i + batch_size],
+                       embeddings=embeddings[i:i + batch_size],
+                       metadatas=meta_datas[i:i + batch_size])
 
 
 def process_parquet_files(folder: str):
@@ -40,9 +45,9 @@ def process_parquet_files(folder: str):
         abstracts = data['abstract']
         publication_dates = data['publication_date']
 
-        ids = ids[0:100]
-        abstracts = abstracts[0:100]
-        publication_dates = publication_dates[0:100]
+        # ids = ids[0:10000]
+        # abstracts = abstracts[0:10000]
+        # publication_dates = publication_dates[0:10000]
 
         logging.info(f"- Processing records {total_count} to {total_count + len(ids) - 1}")
 
