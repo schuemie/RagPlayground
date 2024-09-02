@@ -8,13 +8,16 @@ def fetch_pubmed_abstracts(batch_size: int = 100000):
 
     sql = """
     SELECT pmid,
-        title || '\n' || abstract || '\n' ||  mesh_terms AS text,
-        publication_date
-    FROM pubmed_articles
-    LIMIT -1 OFFSET 1560000;  	
+    CASE WHEN title IS NULL THEN '' ELSE title || '\n' END ||
+        CASE WHEN abstract IS NULL THEN '' ELSE abstract || '\n' END ||
+        CASE WHEN mesh_terms IS NULL THEN '' ELSE mesh_terms END AS text,
+    mesh_terms,    
+    publication_date
+    FROM pubmed_articles;  	
     """
-    cursor.execute(sql)
-
+    # cursor.execute(sql)
+    # x = cursor.fetchone()
+    # x
     while True:
         records = cursor.fetchmany(batch_size)
         if not records:

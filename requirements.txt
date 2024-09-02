@@ -6,3 +6,4 @@ python-dotenv==1.0.1
 sentence_transformers==3.0.1
 torch==2.3.0
 einops==0.8.0
+PyYAML==6.0.2

@@ -1,0 +1,4 @@
+system:
+  xml_folder: e:/Medline/Unprocessed
+  sqlite_path: e:/Medline/PubMed.sqlite
+  log_path: e:/Medline/logPubmedXmlToSqlite.txt
