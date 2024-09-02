@@ -12,6 +12,7 @@ class TransformerEmbedder:
         self.batch_size = batch_size
 
     def embed_documents(self, texts: List[str]) -> ndarray:
+        texts = [text if text is not None else "" for text in texts]
         embeddings = self.model.encode(texts, batch_size=self.batch_size)
         return embeddings
 

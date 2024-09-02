@@ -6,3 +6,5 @@ venv
 PubMedChromaDb
 PubmedParquet
 log.txt
+PubMed.sqlite
+

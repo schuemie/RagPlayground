@@ -3,7 +3,7 @@ import logging
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from PubMedIterator import fetch_pubmed_abstracts
+from PubMedPostgresIterator import fetch_pubmed_abstracts
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(filename="log.txt",

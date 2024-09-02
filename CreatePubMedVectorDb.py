@@ -1,13 +1,8 @@
 import logging
-from datetime import date
 
-import chromadb
-from chromadb.utils.embedding_functions import DefaultEmbeddingFunction
-
-from PubMedIterator import fetch_pubmed_abstracts
+from PubMedSqliteIterator import fetch_pubmed_abstracts
 from TransformerEmbedder import TransformerEmbedder
-
-DAYS_OFFSET = date(1970, 1, 1).toordinal()
+from ChromaDb import store_in_chromadb
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(filename="log.txt",
@@ -18,17 +13,8 @@ logging.basicConfig(filename="log.txt",
 logger.info("Started")
 
 
-def store_in_chromadb(records, embeddings):
-    client = chromadb.PersistentClient(path = "./PubMedChromaDb")
-    collection = client.get_or_create_collection(name="pubmed_abstracts", embedding_function=DefaultEmbeddingFunction())
-
-    ids = [str(record[0]) for record in records]
-    metadatas = [{'publication_date': (record[2].toordinal() - DAYS_OFFSET)} for record in records]
-    collection.add(ids=ids, embeddings=embeddings, metadatas=metadatas)
-
-
 # Main process
-def process_pubmed_abstracts(batch_size=1000, embedding_batch_size=32):
+def process_pubmed_abstracts(batch_size=10000):
     embedder = TransformerEmbedder()
     total_count = 0
 
@@ -37,10 +23,14 @@ def process_pubmed_abstracts(batch_size=1000, embedding_batch_size=32):
 
         logging.info("  Embedding")
         abstracts = [record[1] for record in records]
-        embeddings = embedder.embed_documents(abstracts, batch_size=embedding_batch_size)
+        embeddings = embedder.embed_documents(abstracts)
 
         logging.info("  Storing in ChromaDB")
-        store_in_chromadb(records, embeddings)
+        ids = [record[0] for record in records]
+        publication_dates = [record[2] for record in records]
+        store_in_chromadb(ids=ids,
+                          embeddings=embeddings,
+                          publication_dates=publication_dates)
 
         total_count = total_count + len(records)
 
