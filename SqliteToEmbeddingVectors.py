@@ -58,7 +58,7 @@ def main(args: List[str]):
         store_in_parquet(pmids=pmids,
                          embeddings=embeddings,
                          publication_dates=publication_dates,
-                         file_name=file_name)
+                         file_name=os.path.join(settings.parquet_folder, file_name))
 
         total_count = total_count + len(records)
 
