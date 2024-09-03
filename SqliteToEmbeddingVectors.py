@@ -41,7 +41,7 @@ def main(args: List[str]):
 
     total_count = 0
 
-    for records in fetch_pubmed_abstracts_for_embedding(settings.batch_size):
+    for records in fetch_pubmed_abstracts_for_embedding(settings.sqlite_path, settings.batch_size):
         for record in records:
             if record[1] is None:
                 print(record[0])

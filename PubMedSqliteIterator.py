@@ -2,15 +2,16 @@ import os
 import sqlite3
 
 
-def fetch_pubmed_abstracts_for_embedding(batch_size: int = 100000):
+def fetch_pubmed_abstracts_for_embedding(sqlite_path: str, batch_size: int = 100000):
     """
     An iterator that fetches PubMed abstracts in batches. The contents are aimed at creating embedding vectors for
     retrieval.
 
+    }:param sqlite_path: The path to the SQLite database file
     :param batch_size: The size of the batches the iterator returns
     :return: A tuple of 3: pmids, texts, and publication dates (toordinal integers), each of length batch_size.
     """
-    connection = sqlite3.connect('PubMed.sqlite')
+    connection = sqlite3.connect(sqlite_path)
     cursor = connection.cursor()
 
     sql = """
@@ -23,9 +24,7 @@ def fetch_pubmed_abstracts_for_embedding(batch_size: int = 100000):
         publication_date
     FROM pubmed_articles;  	
     """
-    # cursor.execute(sql)
-    # x = cursor.fetchone()
-    # x
+    cursor.execute(sql)
     while True:
         records = cursor.fetchmany(batch_size)
         if not records:

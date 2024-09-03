@@ -19,6 +19,9 @@ class SqliteToEmbeddingVectorsSettings:
         system = config["system"]
         for key, value in system.items():
             setattr(self, key, value)
+        processing = config["processing"]
+        for key, value in processing.items():
+            setattr(self, key, value)
         model = config["model"]
         for key, value in model.items():
             setattr(self, key, value)

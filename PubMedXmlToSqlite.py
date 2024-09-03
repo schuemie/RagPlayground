@@ -121,7 +121,7 @@ def parse_pubmed_xml(file_path: str) -> Records:
 
             # Journal name
             journal = article.find(".//Journal")
-            journal_name_elem = journal.find(".//Title")
+            journal_name_elem = journal.find(".//ISOAbbreviation")
             journal_name = journal_name_elem.text if journal_name_elem is not None else None
             records.journal_names.append(journal_name)
 
