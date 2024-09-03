@@ -1,0 +1,11 @@
+system:
+  sqlite_path: e:/Medline/PubMed.sqlite
+  parquet_folder: e:/Medline/Vectors
+  log_path: e:/Medline/logSqliteToEmbeddingVectors.txt
+processing:
+  batch_size: 10000
+model:
+  embedding_model: Snowflake/snowflake-arctic-embed-s
+  embed_document_prompt:
+  embed_query_prompt: query
+  embedding_batch_size: 32

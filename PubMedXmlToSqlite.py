@@ -8,19 +8,11 @@ from typing import Tuple, Optional, List
 import os
 import sqlite3
 import yaml
-
 from xml.etree import ElementTree
 from xml.etree.ElementTree import Element
 
 from PubMedXmlToSqliteSettings import PubMedXmlToSqliteSettings
-
-
-def open_log(log_path):
-    logger = logging.getLogger(__name__)
-    logging.basicConfig(filename=log_path,
-                        level=logging.INFO,
-                        format="%(asctime)s %(levelname)-8s %(message)s",
-                        datefmt="%Y-%m-%d %H:%M:%S")
+from Logging import open_log
 
 
 @dataclass
@@ -48,8 +40,8 @@ def parse_pubmed_xml(file_path: str) -> Records:
     and collapses everything to a single value. For example, all author names are combined into a single (EOL-delimited)
     string.
 
-    :param file_path:
-    :return: An object of type Records
+    :param file_path: The path to the xml.gz file.
+    :return: An object of type Records.
     """
     records = Records()
 
@@ -79,6 +71,7 @@ def parse_pubmed_xml(file_path: str) -> Records:
                 text = abstract_elem.text
 
                 if text:
+                    # If the section has a header, include it in the text:
                     if label:
                         section_text = f"{label}\n{text}"
                     else:
@@ -105,7 +98,10 @@ def parse_pubmed_xml(file_path: str) -> Records:
             # Keywords
             keyword_list = []
             for keyword in article.findall(".//Keyword"):
-                keyword_list.append(keyword.text)
+                keyword_text = keyword.text
+                # Keywords don't use a controlled vocabulary, so could contain non-parseable garbage:
+                if keyword_text is not None:
+                    keyword_list.append(keyword_text)
             keywords_combined = "\n".join(keyword_list) if keyword_list else None
             records.keywords.append(keywords_combined)
 
@@ -247,22 +243,25 @@ def parse_medline_date(medline_date_text: str) -> datetime.date:
     Raises:
         ValueError: If the Medline date cannot be parsed.
     """
+    if len(medline_date_text) == 4 and medline_date_text.isdigit():
+        return datetime.date(int(medline_date_text), 1, 1)
+
+    if " " in medline_date_text:
+        year = medline_date_text.split()[0]
+        if year.isdigit():
+            return datetime.date(int(year), 1, 1)
+
     try:
-        if len(medline_date_text) == 4 and medline_date_text.isdigit():
-            return datetime.date(int(medline_date_text), 1, 1)
-
-        if " " in medline_date_text:
-            year = medline_date_text.split()[0]
-            if year.isdigit():
-                return datetime.date(int(year), 1, 1)
-
         if medline_date_text[:4].isdigit():
             return datetime.date(int(medline_date_text[:4]), 1, 1)
     except ValueError:
-        if medline_date_text[:4].isdigit():
-            return datetime.date(int(medline_date_text[:4]), 1, 1)
-        elif medline_date_text[-4:].isdigit():
-            return datetime.date(int(medline_date_text[-4:]), 1, 1)
+        pass
+
+    if medline_date_text[:4].isdigit():
+        return datetime.date(int(medline_date_text[:4]), 1, 1)
+
+    if medline_date_text[-4:].isdigit():
+        return datetime.date(int(medline_date_text[-4:]), 1, 1)
 
     raise ValueError(f"Cannot parse Medline date: {medline_date_text}")
 
@@ -367,6 +366,6 @@ def main(args: List[str]):
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        raise Exception("Must provide path to ini file as argument")
+        raise Exception("Must provide path to yaml file as argument")
     else:
         main(sys.argv[1:])
