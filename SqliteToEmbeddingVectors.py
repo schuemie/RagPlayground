@@ -42,23 +42,23 @@ def main(args: List[str]):
     total_count = 0
 
     for records in fetch_pubmed_abstracts_for_embedding(settings.sqlite_path, settings.batch_size):
-        for record in records:
-            if record[1] is None:
-                print(record[0])
-        logging.info(f"- Processing records {total_count + 1} to {total_count + len(records)}")
-
-        logging.info("  Embedding")
-        abstracts = [record[1] for record in records]
-        embeddings = embedder.embed_documents(abstracts)
-
-        logging.info("  Storing in Parquet")
-        pmids = [int(record[0]) for record in records]
-        publication_dates = [record[2] for record in records]
         file_name = f"EmbeddingVectors{total_count + 1}_{total_count + len(records)}.parquet"
-        store_in_parquet(pmids=pmids,
-                         embeddings=embeddings,
-                         publication_dates=publication_dates,
-                         file_name=os.path.join(settings.parquet_folder, file_name))
+        file_name = os.path.join(settings.parquet_folder, file_name)
+        if not os.path.isfile(file_name):
+            logging.info(f"- Processing records {total_count + 1} to {total_count + len(records)}")
+
+            logging.info("  Embedding")
+            abstracts = [record[1] for record in records]
+            embeddings = embedder.embed_documents(abstracts)
+
+            logging.info("  Storing in Parquet")
+            pmids = [int(record[0]) for record in records]
+            publication_dates = [record[2] for record in records]
+
+            store_in_parquet(pmids=pmids,
+                             embeddings=embeddings,
+                             publication_dates=publication_dates,
+                             file_name=file_name)
 
         total_count = total_count + len(records)
 
