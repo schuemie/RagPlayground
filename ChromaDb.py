@@ -4,8 +4,6 @@ from typing import List, Any
 import chromadb
 from numpy import ndarray
 
-DAYS_OFFSET = date(1970, 1, 1).toordinal()
-
 
 def store_in_chromadb(ids: List[Any],
                       embeddings: ndarray,

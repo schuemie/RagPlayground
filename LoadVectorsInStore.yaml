@@ -1,0 +1,4 @@
+system:
+  parquet_folder: /Users/schuemie/Data/PubMedVectors
+  vector_store_path: /Users/schuemie/Data/PubMedVectorStore.bin
+  log_path: ./logLoadVectorsInStore.txt
