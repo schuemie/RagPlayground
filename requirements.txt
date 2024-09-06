@@ -1,8 +1,13 @@
 numpy==1.26.4
 pyarrow==17.0.0
 sentence_transformers==3.0.1
-torch==2.3.0
+torch==2.4.1
 einops==0.8.0
 PyYAML==6.0.2
 tqdm==4.66.5
 chromadb==0.5.5
+chroma-hnswlib~=0.7.6
+sentence-transformers~=3.0.1
+python-dotenv~=1.0.1
+psycopg~=3.2.1
+pgvector~=0.3.2
