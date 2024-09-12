@@ -1,9 +1,8 @@
 system:
-  parquet_folder: e:/PubMed/VectorsSaSmall
-  log_path: e:/PubMed/logLoadVectorsInStore.txt
+  parquet_folder: /Users/schuemie/Data/PubMedVectors768
+  log_path: logLoadVectorsInStore.txt
 vector_store:
-  dimensions: 384
-  store_type: pgvector
-  path:
+  dimensions: 768
+  store_type: pgvector_halfvec
   schema: pubmed
-  table: vectors_snowflake_arctic_s
+  table: vectors_snowflake_arctic_m

@@ -9,7 +9,7 @@ load_dotenv()
 
 
 # Configuration
-sqlite_db = 'e:/PubMed/PubMed.sqlite'  # Path to SQLite database
+sqlite_db = '/Users/schuemie/Data/PubMed.sqlite'  # Path to SQLite database
 chunk_size = 100000  # Number of rows per chunk for large tables
 
 # Connect to SQLite
