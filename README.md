@@ -48,7 +48,29 @@ PYTHONPATH=./: python SqliteToEmbeddingVectors.py SqliteToEmbeddingVectors.yaml
 
 # Load the vectors in a vector database
 
-Not yet finished. ChromaDB does not appear to be able to handle this size.
+The fourth step loads the embedding vectors from the Parquet files and inserts them into a PostgreSQL database with the [`pgvector` extension](https://github.com/pgvector/pgvector).
+
+To run, modify the `LoadVectorsInStore.yaml` file and run:
+```python
+PYTHONPATH=./: python LoadVectorsInStore.py LoadVectorsInStore.yaml
+```
+The `store_type` argument in the YAML file can be set to `pgvector` for full precision, or `pgvector_halfvec` for half precision. 
+
+Once the vectors are loaded, an index needs to be created. This requires a lot of memory. If the process runs out of memory, it will continue but at an extremely slow pace. In my experience, for 384-dimensional vectors at full precision, or for 768-dimensional vectors are half precision, the process requires up to 80GB of RAM. I found the best performacne using these settings:
+
+```sql
+SET maintenance_work_mem = '90GB'
+SET max_parallel_maintenance_workers = 0
+CREATE INDEX ON pubmed.vectors_snowflake_arctic_s USING hnsw (embedding vector_cosine_ops)
+```
+For half-precision the last line should read:
+
+```sql
+CREATE INDEX ON pubmed.vectors_snowflake_arctic_m USING hnsw (embedding halfvec_cosine_ops)
+```
+
+
+
 
 ## License
 
