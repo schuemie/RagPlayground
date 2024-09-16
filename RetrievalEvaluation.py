@@ -61,7 +61,9 @@ class RetrievalEvaluator(ABC):
         Evaluate performance of the retrieval system, computing a large range of evaluation metrics.
 
         :param query_id_to_pmids: A dictionary from query ID to a ranked list of retrieved PMIDs.
-        :return: A dictionary from metric name to metric value.
+        :return: A dictionary from metric name to metric value. See
+        https://people.cs.georgetown.edu/~nazli/classes/ir-Slides/Evaluation-12.pdf for a nice overview of the various
+        metrics.
         """
         pass
 
