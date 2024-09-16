@@ -1,4 +1,6 @@
 from typing import List, Optional
+import warnings
+warnings.simplefilter(action='ignore', category=FutureWarning)
 
 from numpy import ndarray
 from sentence_transformers import SentenceTransformer

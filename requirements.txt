@@ -8,3 +8,5 @@ sentence-transformers~=3.0.1
 python-dotenv~=1.0.1
 psycopg~=3.2.1
 pgvector~=0.3.2
+pandas~=2.2.2
+trectools~=0.0.50

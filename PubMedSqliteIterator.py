@@ -7,7 +7,7 @@ def fetch_pubmed_abstracts_for_embedding(sqlite_path: str, batch_size: int = 100
     An iterator that fetches PubMed abstracts in batches. The contents are aimed at creating embedding vectors for
     retrieval.
 
-    }:param sqlite_path: The path to the SQLite database file
+    :param sqlite_path: The path to the SQLite database file
     :param batch_size: The size of the batches the iterator returns
     :return: A tuple of 3: pmids, texts, and publication dates (toordinal integers), each of length batch_size.
     """
