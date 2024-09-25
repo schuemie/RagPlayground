@@ -56,21 +56,51 @@ PYTHONPATH=./: python LoadVectorsInStore.py LoadVectorsInStore.yaml
 ```
 The `store_type` argument in the YAML file can be set to `pgvector` for full precision, or `pgvector_halfvec` for half precision. 
 
-Once the vectors are loaded, an index needs to be created. This requires a lot of memory. If the process runs out of memory, it will continue but at an extremely slow pace. In my experience, for 384-dimensional vectors at full precision, or for 768-dimensional vectors are half precision, the process requires up to 80GB of RAM. I found the best performacne using these settings:
+
+## Creating the vector index
+Once the vectors are loaded, an index needs to be created. This requires a lot of memory. It is probably best to partition the table, because then a separate index will be created for each partition.
+
+In my experience, 37 million v768-dimensional vectors stored as `halfvec` will require about 80GB of memory in total. We could create a new table with 8 partitions, and copy the data from the staging table:
 
 ```sql
-SET maintenance_work_mem = '90GB'
-SET max_parallel_maintenance_workers = 0
-CREATE INDEX ON pubmed.vectors_snowflake_arctic_s USING hnsw (embedding vector_cosine_ops)
-```
-For half-precision the last line should read:
+CREATE TABLE pubmed.vectors_snowflake_arctic_m_partitioned (
+    pmid INT PRIMARY KEY,
+    embedding halfvec(768)
+) PARTITION BY HASH(pmid);
 
+CREATE TABLE vectors_snowflake_arctic_m_partitioned_1 PARTITION OF vectors_snowflake_arctic_m_partitioned
+    FOR VALUES WITH (MODULUS 8, REMAINDER 0);
+
+CREATE TABLE vectors_snowflake_arctic_m_partitioned_2 PARTITION OF vectors_snowflake_arctic_m_partitioned
+    FOR VALUES WITH (MODULUS 8, REMAINDER 1);
+
+CREATE TABLE vectors_snowflake_arctic_m_partitioned_3 PARTITION OF vectors_snowflake_arctic_m_partitioned
+    FOR VALUES WITH (MODULUS 8, REMAINDER 2);
+
+CREATE TABLE vectors_snowflake_arctic_m_partitioned_4 PARTITION OF vectors_snowflake_arctic_m_partitioned
+    FOR VALUES WITH (MODULUS 8, REMAINDER 3);
+
+CREATE TABLE vectors_snowflake_arctic_m_partitioned_5 PARTITION OF vectors_snowflake_arctic_m_partitioned
+    FOR VALUES WITH (MODULUS 8, REMAINDER 4);
+
+CREATE TABLE vectors_snowflake_arctic_m_partitioned_6 PARTITION OF vectors_snowflake_arctic_m_partitioned
+    FOR VALUES WITH (MODULUS 8, REMAINDER 5);
+
+CREATE TABLE vectors_snowflake_arctic_m_partitioned_7 PARTITION OF vectors_snowflake_arctic_m_partitioned
+    FOR VALUES WITH (MODULUS 8, REMAINDER 6);
+
+CREATE TABLE vectors_snowflake_arctic_m_partitioned_8 PARTITION OF vectors_snowflake_arctic_m_partitioned
+    FOR VALUES WITH (MODULUS 8, REMAINDER 7);
+
+INSERT INTO vectors_snowflake_arctic_m_partitioned
+SELECT * FROM vectors_snowflake_arctic_m;
+```
+Because we now have 8 partitions, we'll need about 80 / 8 = 10GB of memory to create the index:
 ```sql
-CREATE INDEX ON pubmed.vectors_snowflake_arctic_m USING hnsw (embedding halfvec_cosine_ops)
+SET maintenance_work_mem = '10GB'
+SET max_parallel_maintenance_workers = 4
+CREATE INDEX ON pubmed.vectors_snowflake_arctic_m_partitioned USING hnsw (embedding halfvec_cosine_ops)
 ```
-
-
-
 
 ## License
 
