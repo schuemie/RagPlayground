@@ -1,0 +1,6 @@
+__pycache__
+.pytest_cache
+stats
+venv
+.idea
+rsconnect-python
