@@ -5,6 +5,7 @@ from datetime import datetime
 from time import sleep
 from typing import Optional, Dict
 from xml.etree import ElementTree
+import time
 
 import psycopg
 import requests
@@ -17,14 +18,35 @@ from RetrievalEvaluation import RetrievalEvaluator, TrecCovidEvaluator, BioASQTr
 
 load_dotenv()
 
+if os.environ.get("GEMINI_KEY") is not None:
+    import google.generativeai as genai
 
-def evaluate_vector_store(evaluator: RetrievalEvaluator, table_name: str, model_name: str) -> Dict[str, float]:
+# Used when calling the LLM:
+CACHE_FOLDER = "/Users/schuemie/Data/temp"
+
+class RateLimiter:
+    def __init__(self, max_calls_per_minute):
+        self.max_calls = max_calls_per_minute
+        self.interval = 60 / max_calls_per_minute
+        self.last_call_time = 0
+
+    def wait(self):
+        now = time.time()
+        if now - self.last_call_time < self.interval:
+            time_to_wait = self.interval - (now - self.last_call_time)
+            time.sleep(time_to_wait)
+        self.last_call_time = time.time()
+
+rate_limiter = RateLimiter(15)
+
+
+def evaluate_vector_store(evaluator: RetrievalEvaluator, table_name: str, model_name: str, max_return: int = 1000) -> Dict[str, float]:
     conn = psycopg.connect(host=os.getenv("POSTGRES_SERVER"),
                            user=os.getenv("POSTGRES_USER"),
                            password=os.getenv("POSTGRES_PASSWORD"),
                            dbname=os.getenv("POSTGRES_DATABASE"))
     register_vector(conn)
-    conn.execute("SET hnsw.ef_search = 1000")
+    conn.execute(f"SET hnsw.ef_search = {max_return}")
 
     embedder = TransformerEmbedder(model_name=model_name)
 
@@ -36,7 +58,7 @@ def evaluate_vector_store(evaluator: RetrievalEvaluator, table_name: str, model_
                 SELECT pmid
                 FROM pubmed.{table_name}
                 ORDER BY embedding <=> %s
-                LIMIT 1000;
+                LIMIT {max_return};
                 """
         embedding_str = f"[{','.join(map(str, query_embedding))}]"
         result = conn.execute(sql, (embedding_str, ))
@@ -45,7 +67,98 @@ def evaluate_vector_store(evaluator: RetrievalEvaluator, table_name: str, model_
         query_id_to_pmids[query_id] = pmids
     return evaluator.evaluate(query_id_to_pmids)
 
-def _get_gpt4_response(prompt, system_prompt=None):
+def _eol_to_semicolon(text: str) -> str:
+    return text.replace("\n", "; ")
+
+def evaluate_vecstore_llm_curation(evaluator: RetrievalEvaluator, table_name: str, model_name: str) -> Dict[str, float]:
+    conn = psycopg.connect(host=os.getenv("POSTGRES_SERVER"),
+                           user=os.getenv("POSTGRES_USER"),
+                           password=os.getenv("POSTGRES_PASSWORD"),
+                           dbname=os.getenv("POSTGRES_DATABASE"))
+    register_vector(conn)
+    conn.execute("SET hnsw.ef_search = 100")
+
+    embedder = TransformerEmbedder(model_name=model_name)
+
+    system_prompt = """
+    You are an expert assistant in scientific writing and literature review. You are tasked with identifying articles that help answer the provided research question.
+    Prefer articles of studies whose results answer the question over articles that contain an answer the question in their introduction, thus avoiding indirect citation.
+    Be mindful of the hierarchy of clinical evidence: the highest level of research is considered to be systematic reviews and meta-analyses of randomized trials, followed by randomized trials, well-design observational studies, and at the lowest level case reports and expert opinion. Prefer articles with higher grades of evidence.    
+    
+    Your answer should consist of a comma-separated list of PMIDs, ordered so the most relevant PMID is listed first.
+    """
+
+    query_id_to_query = evaluator.get_query_id_to_query()
+    query_id_to_pmids = {}
+    for query_id, query in tqdm(query_id_to_query.items()):
+        file_name = os.path.join(CACHE_FOLDER, f"Response_q{query_id}.txt")
+        if os.path.isfile(file_name):
+            with open(file_name, "r", encoding="utf-8") as f:
+                response = f.read()
+        else:
+            query_embedding = embedder.embed_query(query)
+            sql = f"""
+                    SELECT vectors.pmid,
+                        title,
+                        abstract,
+                        publication_types
+                    FROM pubmed.{table_name} vectors
+                    INNER JOIN pubmed.pubmed_articles
+                        ON vectors.pmid = pubmed_articles.pmid
+                    ORDER BY embedding <=> %s
+                    LIMIT 100;
+                    """
+            embedding_str = f"[{','.join(map(str, query_embedding))}]"
+            result = conn.execute(sql, (embedding_str, ))
+            similar_rows = result.fetchall()
+            articles = [f"PMID: {row[0]}\nTitle: {row[1]}\nPublication types: {_eol_to_semicolon(row[3])}\nAbstract:\n{row[2]}\n" for row in similar_rows]
+            articles = "\n\n".join(articles)
+            prompt = f"Research question: {query}\n\nArticles:\n\n{articles}\n\nRelevant PMIDs: "
+            response = _get_llm_response(prompt, system_prompt)
+            with open(file_name, "w", encoding="utf-8") as f:
+                f.write(response)
+
+        pmids = [int(pmid) for pmid in response.split(",")]
+        # For some reason Gemini likes to repeat each PMID 10 times, so deduplicate:
+        seen = set()
+        pmids = [pmid for pmid in pmids if pmid not in seen and not seen.add(pmid)]
+        query_id_to_pmids[query_id] = pmids
+    return evaluator.evaluate(query_id_to_pmids)
+
+
+def _get_llm_response(prompt: str, system_prompt: str=None):
+    if os.environ.get("GENAI_GPT4O_ENDPOINT") is not None:
+        return _get_gpt4o_response(prompt, system_prompt)
+    elif os.environ.get("GEMINI_KEY") is not None:
+        return _get_gemini_response(prompt, system_prompt)
+    else:
+        return _get_local_llm_response(prompt, system_prompt)
+
+
+def _get_gemini_response(prompt: str, system_prompt: str=None):
+    # Currently using free tier, which is limited to 15 RPM:
+    rate_limiter.wait()
+
+    genai.configure(api_key=os.environ.get("GEMINI_KEY"))
+    model = genai.GenerativeModel("gemini-1.5-flash",
+                                  system_instruction = system_prompt)
+    response = model.generate_content(prompt)
+    return response.text
+
+
+def _get_local_llm_response(prompt: str, system_prompt: str=None):
+    params = {"prompt": prompt}
+    if system_prompt is not None:
+        params["system_prompt"] = system_prompt
+    local_llm_url = "http://127.0.0.1:8080/llm"
+    response = requests.request("POST", url=local_llm_url, json=params)
+    if response.status_code == 200:
+        return response.text
+    else:
+        raise Exception(f"error: {response.status_code}, details: {response.text}")
+
+
+def _get_gpt4o_response(prompt, system_prompt=None):
     # Construct the messages for the API request
     if system_prompt is None:
         messages = [
@@ -140,7 +253,7 @@ def evaluate_llm_pubmed_queries(evaluator: RetrievalEvaluator,
                 pubmed_query = f.read()
         else:
             prompt = prompt_template % query
-            pubmed_query = _get_gpt4_response(prompt, system_prompt)
+            pubmed_query = _get_llm_response(prompt, system_prompt)
             with open(file_name, "w", encoding="utf-8") as f:
                 f.write(pubmed_query)
 
@@ -205,6 +318,39 @@ if __name__ == "__main__":
     #  'NDCG@30': 0.31066998926732414, 'NDCG@100': 0.19609328905105683, 'NDCG@200': 0.1526895342304493,
     #  'NDCG@500': 0.13710663032775505, 'NDCG@1000': 0.13680085599138453}
 
+    # Using Gemini 1.5 Flash:
+    # results = evaluate_vecstore_llm_curation(TrecCovidEvaluator(),
+    #                                          table_name="vectors_snowflake_arctic_m",
+    #                                          model_name="Snowflake/snowflake-arctic-embed-m-v1.5")
+    # {'num_ret': 631, 'num_rel': 11482, 'num_rel_ret': 464, 'num_q': 50, 'map': 0.03923676473170708,
+    #  'gm_map': 0.026130297162931547, 'bpref': 0.04545283728804681, 'Rprec': 0.045611022666147256,
+    #  'recip_rank': 0.8833333333333333, 'P@5': 0.72, 'P@10': 0.6080000000000001, 'P@15': 0.5186666666666667,
+    #  'P@20': 0.429, 'P@30': 0.3053333333333333, 'P@100': 0.0928, 'P@200': 0.0464, 'P@500': 0.01856, 'P@1000': 0.00928,
+    #  'NDCG@5': 0.7331023079754503, 'NDCG@10': 0.6305995790010896, 'NDCG@15': 0.551876136728063,
+    #  'NDCG@20': 0.48479002783707364, 'NDCG@30': 0.38467815741444483, 'NDCG@100': 0.1810817516110834,
+    #  'NDCG@200': 0.13483370593422264, 'NDCG@500': 0.12231803946284557, 'NDCG@1000': 0.12215175814595641}
+
+    # results = evaluate_vector_store(TrecCovidEvaluator(),
+    #                                 table_name="vectors_snowflake_arctic_m",
+    #                                 model_name="Snowflake/snowflake-arctic-embed-m-v1.5",
+    #                                 max_return=100)
+    # {'num_ret': 746, 'num_rel': 11482, 'num_rel_ret': 549, 'num_q': 50, 'map': 0.04604830218765152,
+    #  'gm_map': 0.031107987081723736, 'bpref': 0.0533127830397759, 'Rprec': 0.053542559572009436,
+    #  'recip_rank': 0.8733333333333333, 'P@5': 0.74, 'P@10': 0.6519999999999999, 'P@15': 0.584,
+    #  'P@20': 0.49200000000000005, 'P@30': 0.3586666666666667, 'P@100': 0.10979999999999998,
+    #  'P@200': 0.05489999999999999, 'P@500': 0.02196, 'P@1000': 0.01098, 'NDCG@5': 0.743863769130843,
+    #  'NDCG@10': 0.6628938196022841, 'NDCG@15': 0.6056411219812293, 'NDCG@20': 0.5338320646475238,
+    #  'NDCG@30': 0.43051160073547023, 'NDCG@100': 0.2027149205925674, 'NDCG@200': 0.15071133903524875,
+    #  'NDCG@500': 0.13657441843433488, 'NDCG@1000': 0.13638299764864426}
+
+    # prompt = "What is the capital of Thailand?"
+    # params = {"prompt": prompt}
+    # local_llm_url = "http://127.0.0.1:8080/llm"
+    # response = requests.request("POST", url=local_llm_url, json=params)
+    # print(response.text)
+
+
+
     """
     Evaluating using BioASQ 2024 task B training set
 
@@ -242,5 +388,6 @@ if __name__ == "__main__":
     #  'NDCG@10': 0.16485711854817128, 'NDCG@15': 0.16478692570908746, 'NDCG@20': 0.17220611472909364,
     #  'NDCG@30': 0.18506909262602303, 'NDCG@100': 0.2209366724606398, 'NDCG@200': 0.23385335285310632,
     #  'NDCG@500': 0.2450003307253397, 'NDCG@1000': 0.24965773461719654}
+
 
     print(results)

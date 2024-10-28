@@ -52,7 +52,7 @@ class TransformerEmbedder:
                 A list representing the embedding vector for the query.
         """
     def __init__(self,
-                 model_name: str = "Snowflake/snowflake-arctic-embed-s",
+                 model_name: str = "Snowflake/snowflake-arctic-embed-m-v1.5",
                  embed_document_prompt: Optional[str] = None,
                  embed_query_prompt: Optional[str] = "query",
                  embedding_batch_size: int = 32):
