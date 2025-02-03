@@ -25,12 +25,18 @@ class Records:
     keywords: list = field(default_factory=list)
     chemicals: list = field(default_factory=list)
     authors: list = field(default_factory=list)
+    affiliations: list = field(default_factory=list)
     journal_names: list = field(default_factory=list)
+    journal_abbrs: list = field(default_factory=list)
+    journal_medline_abbrs: list = field(default_factory=list)
+    issns: list = field(default_factory=list)
+    issn_linkings: list = field(default_factory=list)
     years: list = field(default_factory=list)
     volumes: list = field(default_factory=list)
     issues: list = field(default_factory=list)
     paginations: list = field(default_factory=list)
     publication_types: list = field(default_factory=list)
+    languages: list = field(default_factory=list)
     delete_pmids: list = field(default_factory=list)
 
 
@@ -119,11 +125,38 @@ def parse_pubmed_xml(file_path: str) -> Records:
             authors_combined = "\n".join(author_list) if author_list else None
             records.authors.append(authors_combined)
 
+            # Author affiliations
+            affiliation_list = []
+            for author in article.findall(".//Author"):
+                affiliation_list.append(parse_author_affiliations(author))
+            affiliations_combined = "\n".join(affiliation_list) if affiliation_list else None
+            records.affiliations.append(affiliations_combined)
+
             # Journal name
             journal = article.find(".//Journal")
-            journal_name_elem = journal.find(".//ISOAbbreviation")
+            journal_name_elem = journal.find(".//Title")
             journal_name = journal_name_elem.text if journal_name_elem is not None else None
             records.journal_names.append(journal_name)
+
+            # Journal abbreviation
+            journal_abbr_elem = journal.find(".//ISOAbbreviation")
+            journal_abbr = journal_abbr_elem.text if journal_abbr_elem is not None else None
+            records.journal_abbrs.append(journal_abbr)
+
+            # Journal Medline abbreviation
+            journal_medline_abbr_elem = article.find(".//MedlineTA")
+            journal_medline_abbr = journal_medline_abbr_elem.text if journal_medline_abbr_elem is not None else None
+            records.journal_medline_abbrs.append(journal_medline_abbr)
+
+            # ISSN
+            issn_elem = article.find(".//ISSN")
+            issn = issn_elem.text if issn_elem is not None else None
+            records.issns.append(issn)
+
+            # ISSN Linking
+            issn_linking_elem = article.find(".//ISSNLinking")
+            issn_linking = issn_linking_elem.text if issn_linking_elem is not None else None
+            records.issn_linkings.append(issn_linking)
 
             # Year
             year = pub_date.year
@@ -151,6 +184,11 @@ def parse_pubmed_xml(file_path: str) -> Records:
             publication_types_combined = "\n".join(publication_type_list) if publication_type_list else None
             records.publication_types.append(publication_types_combined)
 
+            # Language
+            language_elem = article.find(".//Language")
+            language = language_elem.text if language_elem is not None else None
+            records.languages.append(language)
+
         for delete_citation in root.findall(".//DeleteCitation"):
             pmid_elem = delete_citation.find(".//PMID")
             pmid = int(pmid_elem.text) if pmid_elem is not None else None
@@ -172,6 +210,12 @@ def parse_author(author: Element) -> str:
         return last_name.text
     return f"{last_name.text}, {initials.text}"
 
+
+def parse_author_affiliations(author: Element) -> str:
+    affiliation_list = []
+    for affiliation in author.findall(".//AffiliationInfo"):
+        affiliation_list.append(affiliation.find(".//Affiliation").text)
+    return "\\n".join(affiliation_list) if affiliation_list else ""
 
 def extract_publication_date(article: Element) -> datetime.date:
     """
@@ -290,12 +334,18 @@ def main(args: List[str]):
             keywords TEXT,
             chemicals TEXT,
             authors TEXT,
+            affiliations TEXT,
             journal_name TEXT,
+            journal_abbr TEXT,
+            journal_medline_abbr TEXT,
+            issn TEXT,
+            issn_linking TEXT,
             year INTEGER,
             volume TEXT,
             issue TEXT,
             pagination TEXT,
             publication_types TEXT,
+            language TEXT,
             file_number INTEGER
         )
     """)
@@ -323,14 +373,20 @@ def main(args: List[str]):
                 keywords,
                 chemicals,
                 authors,
+                affiliations,
                 journal_name,
+                journal_abbr,
+                journal_medline_abbr,
+                issn,
+                issn_linking,
                 year,
                 volume,
                 issue,
                 pagination,
                 publication_types,
+                language,
                 file_number)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
                         list(zip(records.pmids,
                                  records.titles,
@@ -340,12 +396,18 @@ def main(args: List[str]):
                                  records.keywords,
                                  records.chemicals,
                                  records.authors,
+                                 records.affiliations,
                                  records.journal_names,
+                                 records.journal_abbrs,
+                                 records.journal_medline_abbrs,
+                                 records.issns,
+                                 records.issn_linkings,
                                  records.years,
                                  records.volumes,
                                  records.issues,
                                  records.paginations,
                                  records.publication_types,
+                                 records.languages,
                                  file_numbers)))
 
         if len(records.delete_pmids) > 0:
