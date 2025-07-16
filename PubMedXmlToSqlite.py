@@ -67,14 +67,14 @@ def parse_pubmed_xml(file_path: str) -> Records:
 
             # Title
             title_elem = article.find(".//ArticleTitle")
-            title = title_elem.text if title_elem is not None else None
+            title = get_children_text(title_elem)
             records.titles.append(title)
 
             # Abstract
             abstract_sections = []
             for abstract_elem in article.findall(".//AbstractText"):
                 label = abstract_elem.get("Label")
-                text = abstract_elem.text
+                text = get_children_text(abstract_elem)
 
                 if text:
                     # If the section has a header, include it in the text:
@@ -97,14 +97,14 @@ def parse_pubmed_xml(file_path: str) -> Records:
             for mesh_heading in article.findall(".//MeshHeading"):
                 descriptor_name = mesh_heading.find("DescriptorName")
                 if descriptor_name is not None:
-                    mesh_terms_list.append(descriptor_name.text)
+                    mesh_terms_list.append(get_children_text(descriptor_name))
             mesh_terms_combined = "\n".join(mesh_terms_list) if mesh_terms_list else None
             records.mesh_terms.append(mesh_terms_combined)
 
             # Keywords
             keyword_list = []
             for keyword in article.findall(".//Keyword"):
-                keyword_text = keyword.text
+                keyword_text = get_children_text(keyword)
                 # Keywords don't use a controlled vocabulary, so could contain non-parseable garbage:
                 if keyword_text is not None:
                     keyword_list.append(keyword_text)
@@ -114,7 +114,7 @@ def parse_pubmed_xml(file_path: str) -> Records:
             # Chemicals
             chemical_list = []
             for chemical in article.findall(".//NameOfSubstance"):
-                chemical_list.append(chemical.text)
+                chemical_list.append(get_children_text(chemical))
             chemicals_combined = "\n".join(chemical_list) if chemical_list else None
             records.chemicals.append(chemicals_combined)
 
@@ -135,17 +135,17 @@ def parse_pubmed_xml(file_path: str) -> Records:
             # Journal name
             journal = article.find(".//Journal")
             journal_name_elem = journal.find(".//Title")
-            journal_name = journal_name_elem.text if journal_name_elem is not None else None
+            journal_name = get_children_text(journal_name_elem)
             records.journal_names.append(journal_name)
 
             # Journal abbreviation
             journal_abbr_elem = journal.find(".//ISOAbbreviation")
-            journal_abbr = journal_abbr_elem.text if journal_abbr_elem is not None else None
+            journal_abbr = get_children_text(journal_abbr_elem)
             records.journal_abbrs.append(journal_abbr)
 
             # Journal Medline abbreviation
             journal_medline_abbr_elem = article.find(".//MedlineTA")
-            journal_medline_abbr = journal_medline_abbr_elem.text if journal_medline_abbr_elem is not None else None
+            journal_medline_abbr = get_children_text(journal_medline_abbr_elem)
             records.journal_medline_abbrs.append(journal_medline_abbr)
 
             # ISSN
@@ -196,25 +196,29 @@ def parse_pubmed_xml(file_path: str) -> Records:
 
     return records
 
+def get_children_text(element: Element) -> str:
+    return "".join(element.itertext()) if element is not None else None
 
 def parse_author(author: Element) -> str:
     collective_name = author.find(".//CollectiveName")
     if collective_name is not None:
-        return collective_name.text
+        return get_children_text(collective_name)
 
     last_name = author.find(".//LastName")
     initials = author.find(".//Initials")
     if last_name is None:
         raise ValueError("Cannot parse author: LastName and CollectiveName are both missing")
     if initials is None:
-        return last_name.text
-    return f"{last_name.text}, {initials.text}"
+        return get_children_text(last_name)
+    return f"{get_children_text(last_name)}, {get_children_text(initials)}"
 
 
 def parse_author_affiliations(author: Element) -> str:
     affiliation_list = []
     for affiliation in author.findall(".//AffiliationInfo"):
-        affiliation_list.append(affiliation.find(".//Affiliation").text)
+        text = get_children_text(affiliation.find(".//Affiliation"))
+        if text is not None:
+            affiliation_list.append(get_children_text(affiliation.find(".//Affiliation")))
     return "\\n".join(affiliation_list) if affiliation_list else ""
 
 def extract_publication_date(article: Element) -> datetime.date:
